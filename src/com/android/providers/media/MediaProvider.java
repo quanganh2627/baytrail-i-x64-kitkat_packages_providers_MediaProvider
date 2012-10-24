@@ -3011,7 +3011,18 @@ public class MediaProvider extends ContentProvider {
             Long parent = values.getAsLong(FileColumns.PARENT);
             if (parent == null) {
                 if (path != null) {
-                    long parentId = getParent(helper, db, path);
+                    long parentId;
+                    try {
+                        parentId = getParent(helper, db, path);
+                    } catch (StackOverflowError se) {
+                        // Workaround - BZ60211
+                        // When the USB disk has been removed brutaly,
+                        // the mDirectoryCache is cleared and the full
+                        // path of the contents is rebuilt recursively
+                        // causing a StackOverflowError if the path
+                        // to build is containing too much elements
+                        return -1;
+                    }
                     values.put(FileColumns.PARENT, parentId);
                 }
             }
