@@ -53,6 +53,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
     private RingtoneManager mRingtoneManager;
 
     private Cursor mCursor;
+    private boolean mCursorDeactivated;
     private Handler mHandler;
 
     /** The position in the list of the 'Silent' item. */
@@ -144,6 +145,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         }
 
         mCursor = mRingtoneManager.getCursor();
+        mCursorDeactivated = false;
 
         // The volume keys will control the stream that we are choosing a ringtone for
         setVolumeControlStream(mRingtoneManager.inferStreamType());
@@ -262,6 +264,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         getWindow().getDecorView().post(new Runnable() {
             public void run() {
                 mCursor.deactivate();
+                mCursorDeactivated = true;
             }
         });
 
@@ -285,6 +288,9 @@ public final class RingtonePickerActivity extends AlertActivity implements
     }
 
     public void run() {
+
+        if (mCursorDeactivated)
+            return;
 
         if (mSampleRingtonePos == mSilentPos) {
             mRingtoneManager.stopPreviousRingtone();
