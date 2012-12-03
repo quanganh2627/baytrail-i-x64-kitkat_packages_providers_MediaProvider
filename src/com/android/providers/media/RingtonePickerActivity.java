@@ -161,7 +161,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         p.mPositiveButtonText = getString(com.android.internal.R.string.ok);
         p.mPositiveButtonListener = this;
         p.mNegativeButtonText = getString(com.android.internal.R.string.cancel);
-        p.mPositiveButtonListener = this;
+        p.mNegativeButtonListener = this;
         p.mOnPrepareListViewListener = this;
 
         p.mTitle = intent.getCharSequenceExtra(RingtoneManager.EXTRA_RINGTONE_TITLE);
