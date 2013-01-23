@@ -183,7 +183,10 @@ public class MtpService extends Service {
      */
     private void manageServiceLocked() {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
-        if (mServer == null && isCurrentUser) {
+        if ((mServer == null || mServer.getState() == Thread.State.TERMINATED) && isCurrentUser) {
+            if (mServer != null)
+                Log.d(TAG, "MTP Server is not running");
+
             Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
             mServer = new MtpServer(mDatabase, mPtpMode);
             if (!mMtpDisabled) {
