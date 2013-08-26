@@ -18,11 +18,15 @@ package com.android.providers.media;
 
 import android.app.ActivityManager;
 import android.app.KeyguardManager;
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
 import android.hardware.usb.UsbManager;
 import android.mtp.MtpDatabase;
 import android.mtp.MtpServer;
@@ -41,6 +45,7 @@ import java.util.HashMap;
 public class MtpService extends Service {
     private static final String TAG = "MtpService";
     private static final boolean LOGD = true;
+    private static final int NOTIFICATION_ID = 1336;
 
     // We restrict PTP to these subdirectories
     private static final String[] PTP_DIRECTORIES = new String[] {
@@ -169,6 +174,9 @@ public class MtpService extends Service {
             mDatabase = new MtpDatabase(this, MediaProvider.EXTERNAL_VOLUME,
                     primary.getPath(), subdirs);
             manageServiceLocked();
+
+            /*Make MTP service run in foreground so that it won't be killed*/
+            setUpAsForeground();
         }
 
         return START_STICKY;
@@ -302,4 +310,39 @@ public class MtpService extends Service {
         }
     }
 
+    private void setUpAsForeground() {
+        int id = 0;
+        Context mContext = getApplicationContext();
+        Resources r = mContext.getResources();
+        if (mPtpMode) {
+            id = com.android.internal.R.string.usb_ptp_notification_title;
+        } else {
+            id = com.android.internal.R.string.usb_mtp_notification_title;
+        }
+
+        if (id != 0) {
+            CharSequence message = r.getText(
+                com.android.internal.R.string.usb_notification_message);
+            CharSequence title = r.getText(id);
+
+            Notification notification = new Notification();
+            notification.icon = com.android.internal.R.drawable.stat_sys_data_usb;
+            notification.when = 0;
+            notification.flags = Notification.FLAG_ONGOING_EVENT;
+            notification.tickerText = title;
+            notification.defaults = 0; // please be quiet
+            notification.sound = null;
+            notification.vibrate = null;
+            notification.priority = Notification.PRIORITY_MIN;
+
+            Intent intent = Intent.makeRestartActivityTask(
+                 new ComponentName("com.android.settings",
+                      "com.android.settings.UsbSettings"));
+            PendingIntent pi = PendingIntent.getActivityAsUser(mContext, 0,
+                       intent, 0, null, UserHandle.CURRENT);
+            notification.setLatestEventInfo(mContext, title, message, pi);
+            startForeground(NOTIFICATION_ID, notification);
+        }
+    }
 }
+
