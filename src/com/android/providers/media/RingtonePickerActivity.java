@@ -53,6 +53,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
     private RingtoneManager mRingtoneManager;
 
     private Cursor mCursor;
+    private boolean mCursorDeactivated;
     private Handler mHandler;
 
     /** The position in the list of the 'Silent' item. */
@@ -144,6 +145,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         }
 
         mCursor = mRingtoneManager.getCursor();
+        mCursorDeactivated = false;
 
         // The volume keys will control the stream that we are choosing a ringtone for
         setVolumeControlStream(mRingtoneManager.inferStreamType());
@@ -161,7 +163,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         p.mPositiveButtonText = getString(com.android.internal.R.string.ok);
         p.mPositiveButtonListener = this;
         p.mNegativeButtonText = getString(com.android.internal.R.string.cancel);
-        p.mPositiveButtonListener = this;
+        p.mNegativeButtonListener = this;
         p.mOnPrepareListViewListener = this;
 
         p.mTitle = intent.getCharSequenceExtra(RingtoneManager.EXTRA_RINGTONE_TITLE);
@@ -262,6 +264,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         getWindow().getDecorView().post(new Runnable() {
             public void run() {
                 mCursor.deactivate();
+                mCursorDeactivated = true;
             }
         });
 
@@ -286,6 +289,9 @@ public final class RingtonePickerActivity extends AlertActivity implements
 
     public void run() {
 
+        if (mCursorDeactivated)
+            return;
+
         if (mSampleRingtonePos == mSilentPos) {
             mRingtoneManager.stopPreviousRingtone();
             return;
@@ -304,6 +310,13 @@ public final class RingtonePickerActivity extends AlertActivity implements
         if (mSampleRingtonePos == mDefaultRingtonePos) {
             if (mDefaultRingtone == null) {
                 mDefaultRingtone = RingtoneManager.getRingtone(this, mUriForDefaultItem);
+            }
+           /*
+            * Stream type of mDefaultRingtone is not set explicitly here.
+            * It should be set in accordance with mRingtoneManager of this Activity.
+            */
+            if (mDefaultRingtone != null) {
+                mDefaultRingtone.setStreamType(mRingtoneManager.inferStreamType());
             }
             ringtone = mDefaultRingtone;
 

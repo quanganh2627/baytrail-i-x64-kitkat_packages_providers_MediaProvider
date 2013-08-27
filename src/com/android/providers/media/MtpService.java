@@ -71,13 +71,23 @@ public class MtpService extends Service {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
             if (Intent.ACTION_USER_PRESENT.equals(action)) {
-                synchronized (mBinder) {
-                    // Unhide the storage units when the user has unlocked the lockscreen
-                    if (mMtpDisabled) {
-                        addStorageDevicesLocked();
-                        mMtpDisabled = false;
-                    }
-                }
+                // If the media scanner is running, it may currently be calling
+                // sendObjectAdded/Removed, which also synchronizes on mBinder
+                // (and in addition to that, all the native MtpServer methods
+                // lock the same Mutex). If it happens to be in an mtp device
+                // write(), it may block for some time, so process this broadcast
+                // in a thread.
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        synchronized (mBinder) {
+                            // Unhide the storage units when the user has unlocked the lockscreen
+                            if (mMtpDisabled) {
+                                addStorageDevicesLocked();
+                                mMtpDisabled = false;
+                            }
+                        }
+                    }}, "addStorageDevices").start();
             }
         }
     };
@@ -173,7 +183,10 @@ public class MtpService extends Service {
      */
     private void manageServiceLocked() {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
-        if (mServer == null && isCurrentUser) {
+        if ((mServer == null || mServer.getState() == Thread.State.TERMINATED) && isCurrentUser) {
+            if (mServer != null)
+                Log.d(TAG, "MTP Server is not running");
+
             Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
             mServer = new MtpServer(mDatabase, mPtpMode);
             if (!mMtpDisabled) {
@@ -192,6 +205,9 @@ public class MtpService extends Service {
     public void onDestroy() {
         unregisterReceiver(mReceiver);
         mStorageManager.unregisterListener(mStorageEventListener);
+        if (mDatabase != null) {
+            mDatabase.release();
+        }
     }
 
     private final IMtpService.Stub mBinder =
