@@ -2660,11 +2660,7 @@ public class MediaProvider extends ContentProvider {
         }
 
         // Notify MTP (outside of successful transaction)
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         getContext().getContentResolver().notifyChange(uri, null);
         return numInserted;
@@ -2676,11 +2672,7 @@ public class MediaProvider extends ContentProvider {
 
         ArrayList<Long> notifyRowIds = new ArrayList<Long>();
         Uri newUri = insertInternal(uri, match, initialValues, notifyRowIds);
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         // do not signal notification for MTP objects.
         // we will signal instead after file transfer is successful.
@@ -3019,18 +3011,7 @@ public class MediaProvider extends ContentProvider {
             Long parent = values.getAsLong(FileColumns.PARENT);
             if (parent == null) {
                 if (path != null) {
-                    long parentId;
-                    try {
-                        parentId = getParent(helper, db, path);
-                    } catch (StackOverflowError se) {
-                        // Workaround - BZ60211
-                        // When the USB disk has been removed brutaly,
-                        // the mDirectoryCache is cleared and the full
-                        // path of the contents is rebuilt recursively
-                        // causing a StackOverflowError if the path
-                        // to build is containing too much elements
-                        return -1;
-                    }
+                    long parentId = getParent(helper, db, path);
                     values.put(FileColumns.PARENT, parentId);
                 }
             }

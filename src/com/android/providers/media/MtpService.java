@@ -173,10 +173,7 @@ public class MtpService extends Service {
      */
     private void manageServiceLocked() {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
-        if ((mServer == null || mServer.getState() == Thread.State.TERMINATED) && isCurrentUser) {
-            if (mServer != null)
-                Log.d(TAG, "MTP Server is not running");
-
+        if (mServer == null && isCurrentUser) {
             Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
             mServer = new MtpServer(mDatabase, mPtpMode);
             if (!mMtpDisabled) {
@@ -195,9 +192,6 @@ public class MtpService extends Service {
     public void onDestroy() {
         unregisterReceiver(mReceiver);
         mStorageManager.unregisterListener(mStorageEventListener);
-        if (mDatabase != null) {
-            mDatabase.release();
-        }
     }
 
     private final IMtpService.Stub mBinder =
