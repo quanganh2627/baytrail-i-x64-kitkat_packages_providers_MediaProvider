@@ -18,6 +18,7 @@ package com.android.providers.media;
 
 import android.app.ActivityManager;
 import android.app.KeyguardManager;
+import android.app.Notification;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -151,6 +152,12 @@ public class MtpService extends Service {
             mDatabase = new MtpDatabase(this, MediaProvider.EXTERNAL_VOLUME,
                     primary.getPath(), subdirs);
             manageServiceLocked();
+
+            /*Make MTP service run in foreground so that it won't be killed*/
+            Notification note = new Notification();
+            note.flags |= Notification.FLAG_AUTO_CANCEL;
+
+            startForeground(1337,note);
         }
 
         return START_STICKY;
