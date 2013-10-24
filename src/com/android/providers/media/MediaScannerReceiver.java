@@ -45,7 +45,8 @@ public class MediaScannerReceiver extends BroadcastReceiver {
 
                 Log.d(TAG, "action: " + action + " path: " + path);
                 if (Intent.ACTION_MEDIA_MOUNTED.equals(action)
-                        || Intent.ACTION_MEDIA_UNMOUNTED.equals(action)) {
+                        || Intent.ACTION_MEDIA_UNMOUNTED.equals(action)
+                        || Intent.ACTION_MEDIA_EJECT.equals(action)) {
                     // scan whenever any volume is mounted
                     scan(context, MediaProvider.EXTERNAL_VOLUME);
                 } else if (Intent.ACTION_MEDIA_SCANNER_SCAN_FILE.equals(action) &&
