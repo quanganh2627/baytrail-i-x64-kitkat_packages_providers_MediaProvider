@@ -4477,18 +4477,7 @@ public class MediaProvider extends ContentProvider {
             throw new IllegalArgumentException("Unable to resolve canonical path for " + file, e);
         }
 
-        boolean startsWithExternalPath = path.startsWith(sExternalPath);
-
-        if (!startsWithExternalPath) {
-            for (String externalStoragePath : mExternalStoragePaths) {
-                startsWithExternalPath = path.startsWith(externalStoragePath);
-                if (startsWithExternalPath) {
-                    break;
-                }
-            }
-        }
-
-        if (startsWithExternalPath) {
+        if (path.startsWith(sExternalPath)) {
             getContext().enforceCallingOrSelfPermission(
                     READ_EXTERNAL_STORAGE, "External path: " + path);
 
