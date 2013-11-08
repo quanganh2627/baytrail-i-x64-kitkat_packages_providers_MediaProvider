@@ -126,11 +126,14 @@ public class MediaProvider extends ContentProvider {
     private static final String sExternalPath;
     /** Resolved canonical path to cache storage. */
     private static final String sCachePath;
+    /** Resolved canonical path to legacy storage. */
+    private static final String sLegacyPath;
 
     static {
         try {
             sExternalPath = Environment.getExternalStorageDirectory().getCanonicalPath();
             sCachePath = Environment.getDownloadCacheDirectory().getCanonicalPath();
+            sLegacyPath = Environment.getLegacyExternalStorageDirectory().getCanonicalPath();
         } catch (IOException e) {
             throw new RuntimeException("Unable to resolve canonical paths", e);
         }
@@ -4477,18 +4480,7 @@ public class MediaProvider extends ContentProvider {
             throw new IllegalArgumentException("Unable to resolve canonical path for " + file, e);
         }
 
-        boolean startsWithExternalPath = path.startsWith(sExternalPath);
-
-        if (!startsWithExternalPath) {
-            for (String externalStoragePath : mExternalStoragePaths) {
-                startsWithExternalPath = path.startsWith(externalStoragePath);
-                if (startsWithExternalPath) {
-                    break;
-                }
-            }
-        }
-
-        if (startsWithExternalPath) {
+        if (path.startsWith(sExternalPath) || path.startsWith(sLegacyPath)) {
             getContext().enforceCallingOrSelfPermission(
                     READ_EXTERNAL_STORAGE, "External path: " + path);
 
@@ -4508,11 +4500,24 @@ public class MediaProvider extends ContentProvider {
         } else if (isWrite) {
             // don't write to non-cache, non-sdcard files.
             throw new FileNotFoundException("Can't access " + file);
+        } else if (isSecondaryExternalPath(path)) {
+            // read access is OK with the appropriate permission
+            getContext().enforceCallingOrSelfPermission(
+                    READ_EXTERNAL_STORAGE, "External path: " + path);
         } else {
             checkWorldReadAccess(path);
         }
 
         return ParcelFileDescriptor.open(file, modeBits);
+    }
+
+    private boolean isSecondaryExternalPath(String path) {
+        for (int i = mExternalStoragePaths.length - 1; i >= 0; --i) {
+            if (path.startsWith(mExternalStoragePaths[i])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
