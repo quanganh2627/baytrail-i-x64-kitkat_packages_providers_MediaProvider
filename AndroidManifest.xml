@@ -12,7 +12,6 @@
     <uses-permission android:name="android.permission.ACCESS_MTP" />
     <uses-permission android:name="android.permission.MANAGE_USERS" />
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
-    <uses-permission android:name="android.permission.BROADCAST_STICKY" />
 
     <application android:process="android.process.media"
                  android:label="@string/app_label"
@@ -46,10 +45,6 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_UNMOUNTED" />
-                <data android:scheme="file" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.MEDIA_EJECT" />
                 <data android:scheme="file" />
             </intent-filter>
             <intent-filter>

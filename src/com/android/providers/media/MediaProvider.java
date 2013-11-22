@@ -104,8 +104,6 @@ import java.util.Stack;
 import libcore.io.ErrnoException;
 import libcore.io.IoUtils;
 import libcore.io.Libcore;
-import libcore.io.OsConstants;
-import libcore.io.StructStat;
 
 /**
  * Media content provider. See {@link android.provider.MediaStore} for details.
@@ -126,14 +124,11 @@ public class MediaProvider extends ContentProvider {
     private static final String sExternalPath;
     /** Resolved canonical path to cache storage. */
     private static final String sCachePath;
-    /** Resolved canonical path to legacy storage. */
-    private static final String sLegacyPath;
 
     static {
         try {
             sExternalPath = Environment.getExternalStorageDirectory().getCanonicalPath();
             sCachePath = Environment.getDownloadCacheDirectory().getCanonicalPath();
-            sLegacyPath = Environment.getLegacyExternalStorageDirectory().getCanonicalPath();
         } catch (IOException e) {
             throw new RuntimeException("Unable to resolve canonical paths", e);
         }
@@ -2728,11 +2723,7 @@ public class MediaProvider extends ContentProvider {
         }
 
         // Notify MTP (outside of successful transaction)
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         getContext().getContentResolver().notifyChange(uri, null);
         return numInserted;
@@ -2744,11 +2735,7 @@ public class MediaProvider extends ContentProvider {
 
         ArrayList<Long> notifyRowIds = new ArrayList<Long>();
         Uri newUri = insertInternal(uri, match, initialValues, notifyRowIds);
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         // do not signal notification for MTP objects.
         // we will signal instead after file transfer is successful.
@@ -2863,22 +2850,15 @@ public class MediaProvider extends ContentProvider {
     }
 
     private int getStorageId(String path) {
-        final Context context = getContext();
-        StorageManager storageManager = (StorageManager)context.getSystemService(Context.STORAGE_SERVICE);
-        StorageVolume[] volumes = storageManager.getVolumeList();
-        if (volumes != null) {
-            for (int i = 0; i < volumes.length; i++) {
-                String test = volumes[i].getPath();
-                if (path.startsWith(test)) {
-                    int length = test.length();
-                    if (path.length() == length || path.charAt(length) == '/') {
-                        if (LOCAL_LOGV) Log.v(TAG, "StorageId is " + volumes[i].getStorageId() + " for " + path);
-                        return volumes[i].getStorageId();
-                    }
+        for (int i = 0; i < mExternalStoragePaths.length; i++) {
+            String test = mExternalStoragePaths[i];
+            if (path.startsWith(test)) {
+                int length = test.length();
+                if (path.length() == length || path.charAt(length) == '/') {
+                    return MtpStorage.getStorageId(i);
                 }
             }
         }
-
         // default to primary storage
         return MtpStorage.getStorageId(0);
     }
@@ -3086,18 +3066,7 @@ public class MediaProvider extends ContentProvider {
             Long parent = values.getAsLong(FileColumns.PARENT);
             if (parent == null) {
                 if (path != null) {
-                    long parentId;
-                    try {
-                        parentId = getParent(helper, db, path);
-                    } catch (StackOverflowError se) {
-                        // Workaround - BZ60211
-                        // When the USB disk has been removed brutaly,
-                        // the mDirectoryCache is cleared and the full
-                        // path of the contents is rebuilt recursively
-                        // causing a StackOverflowError if the path
-                        // to build is containing too much elements
-                        return -1;
-                    }
+                    long parentId = getParent(helper, db, path);
                     values.put(FileColumns.PARENT, parentId);
                 }
             }
@@ -4480,7 +4449,7 @@ public class MediaProvider extends ContentProvider {
             throw new IllegalArgumentException("Unable to resolve canonical path for " + file, e);
         }
 
-        if (path.startsWith(sExternalPath) || path.startsWith(sLegacyPath)) {
+        if (path.startsWith(sExternalPath)) {
             getContext().enforceCallingOrSelfPermission(
                     READ_EXTERNAL_STORAGE, "External path: " + path);
 
@@ -4494,76 +4463,13 @@ public class MediaProvider extends ContentProvider {
             if (modeBits == MODE_READ_ONLY) {
                 file = Environment.maybeTranslateEmulatedPathToInternal(file);
             }
+
         } else if (path.startsWith(sCachePath)) {
             getContext().enforceCallingOrSelfPermission(
                     ACCESS_CACHE_FILESYSTEM, "Cache path: " + path);
-        } else if (isWrite) {
-            // don't write to non-cache, non-sdcard files.
-            throw new FileNotFoundException("Can't access " + file);
-        } else if (isSecondaryExternalPath(path)) {
-            // read access is OK with the appropriate permission
-            getContext().enforceCallingOrSelfPermission(
-                    READ_EXTERNAL_STORAGE, "External path: " + path);
-        } else {
-            checkWorldReadAccess(path);
         }
 
         return ParcelFileDescriptor.open(file, modeBits);
-    }
-
-    private boolean isSecondaryExternalPath(String path) {
-        for (int i = mExternalStoragePaths.length - 1; i >= 0; --i) {
-            if (path.startsWith(mExternalStoragePaths[i])) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Check whether the path is a world-readable file
-     */
-    private void checkWorldReadAccess(String path) throws FileNotFoundException {
-
-        try {
-            StructStat stat = Libcore.os.stat(path);
-            int accessBits = OsConstants.S_IROTH;
-            if (OsConstants.S_ISREG(stat.st_mode) &&
-                ((stat.st_mode & accessBits) == accessBits)) {
-                checkLeadingPathComponentsWorldExecutable(path);
-                return;
-            }
-        } catch (ErrnoException e) {
-            // couldn't stat the file, either it doesn't exist or isn't
-            // accessible to us
-        }
-
-        throw new FileNotFoundException("Can't access " + path);
-    }
-
-    private void checkLeadingPathComponentsWorldExecutable(String filePath)
-            throws FileNotFoundException {
-        File parent = new File(filePath).getParentFile();
-
-        int accessBits = OsConstants.S_IXOTH;
-
-        while (parent != null) {
-            if (! parent.exists()) {
-                // parent dir doesn't exist, give up
-                throw new FileNotFoundException("access denied");
-            }
-            try {
-                StructStat stat = Libcore.os.stat(parent.getPath());
-                if ((stat.st_mode & accessBits) != accessBits) {
-                    // the parent dir doesn't have the appropriate access
-                    throw new FileNotFoundException("Can't access " + filePath);
-                }
-            } catch (ErrnoException e1) {
-                // couldn't stat() parent
-                throw new FileNotFoundException("Can't access " + filePath);
-            }
-            parent = parent.getParentFile();
-        }
     }
 
     private class ThumbData {
