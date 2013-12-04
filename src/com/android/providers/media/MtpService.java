@@ -88,6 +88,13 @@ public class MtpService extends Service {
                             }
                         }
                     }}, "addStorageDevices").start();
+            } else if (Intent.ACTION_USER_REMOVED.equals(action)) {
+                final StorageVolume primary = StorageManager.getPrimaryVolume(mVolumes);
+                synchronized (mBinder) {
+                    if (primary != null) {
+                        changeStorageInfo(primary);
+                    }
+                }
             }
         }
     };
@@ -122,6 +129,7 @@ public class MtpService extends Service {
     @Override
     public void onCreate() {
         registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_USER_PRESENT));
+        registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_USER_REMOVED));
 
         mStorageManager = StorageManager.from(this);
         synchronized (mBinder) {
@@ -279,4 +287,19 @@ public class MtpService extends Service {
             mServer.removeStorage(storage);
         }
     }
+
+    private void changeStorageInfo(StorageVolume volume) {
+        MtpStorage storage = mStorageMap.get(volume.getPath());
+        if (storage == null) {
+            Log.e(TAG, "no MtpStorage for " + volume.getPath());
+            return;
+        }
+
+        Log.d(TAG, "changeStorageinfo " + storage.getStorageId() + " " + storage.getPath());
+
+        if (mServer != null) {
+            mServer.changeStorageInfo(storage);
+        }
+    }
+
 }
