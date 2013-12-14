@@ -88,6 +88,13 @@ public class MtpService extends Service {
                             }
                         }
                     }}, "addStorageDevices").start();
+            } else if (Intent.ACTION_USER_REMOVED.equals(action)) {
+                final StorageVolume primary = StorageManager.getPrimaryVolume(mVolumes);
+                synchronized (mBinder) {
+                    if (primary != null) {
+                        changeStorageInfo(primary);
+                    }
+                }
             }
         }
     };
@@ -122,6 +129,7 @@ public class MtpService extends Service {
     @Override
     public void onCreate() {
         registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_USER_PRESENT));
+        registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_USER_REMOVED));
 
         mStorageManager = StorageManager.from(this);
         synchronized (mBinder) {
@@ -183,7 +191,10 @@ public class MtpService extends Service {
      */
     private void manageServiceLocked() {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
-        if (mServer == null && isCurrentUser) {
+        if ((mServer == null || mServer.getState() == Thread.State.TERMINATED) && isCurrentUser) {
+            if (mServer != null)
+                Log.d(TAG, "MTP Server is not running");
+
             Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
             mServer = new MtpServer(mDatabase, mPtpMode);
             if (!mMtpDisabled) {
@@ -202,6 +213,9 @@ public class MtpService extends Service {
     public void onDestroy() {
         unregisterReceiver(mReceiver);
         mStorageManager.unregisterListener(mStorageEventListener);
+        if (mDatabase != null) {
+            mDatabase.release();
+        }
     }
 
     private final IMtpService.Stub mBinder =
@@ -273,4 +287,19 @@ public class MtpService extends Service {
             mServer.removeStorage(storage);
         }
     }
+
+    private void changeStorageInfo(StorageVolume volume) {
+        MtpStorage storage = mStorageMap.get(volume.getPath());
+        if (storage == null) {
+            Log.e(TAG, "no MtpStorage for " + volume.getPath());
+            return;
+        }
+
+        Log.d(TAG, "changeStorageinfo " + storage.getStorageId() + " " + storage.getPath());
+
+        if (mServer != null) {
+            mServer.changeStorageInfo(storage);
+        }
+    }
+
 }
