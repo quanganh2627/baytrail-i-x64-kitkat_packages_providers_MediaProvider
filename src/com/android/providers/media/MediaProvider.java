@@ -2831,11 +2831,7 @@ public class MediaProvider extends ContentProvider {
         }
 
         // Notify MTP (outside of successful transaction)
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         getContext().getContentResolver().notifyChange(uri, null);
         return numInserted;
@@ -2847,11 +2843,7 @@ public class MediaProvider extends ContentProvider {
 
         ArrayList<Long> notifyRowIds = new ArrayList<Long>();
         Uri newUri = insertInternal(uri, match, initialValues, notifyRowIds);
-        if (uri != null) {
-            if (uri.toString().contains("content://media/external")) {
-                notifyMtp(notifyRowIds);
-            }
-        }
+        notifyMtp(notifyRowIds);
 
         // do not signal notification for MTP objects.
         // we will signal instead after file transfer is successful.
@@ -2966,22 +2958,15 @@ public class MediaProvider extends ContentProvider {
     }
 
     private int getStorageId(String path) {
-        final Context context = getContext();
-        StorageManager storageManager = (StorageManager)context.getSystemService(Context.STORAGE_SERVICE);
-        StorageVolume[] volumes = storageManager.getVolumeList();
-        if (volumes != null) {
-            for (int i = 0; i < volumes.length; i++) {
-                String test = volumes[i].getPath();
-                if (path.startsWith(test)) {
-                    int length = test.length();
-                    if (path.length() == length || path.charAt(length) == '/') {
-                        if (LOCAL_LOGV) Log.v(TAG, "StorageId is " + volumes[i].getStorageId() + " for " + path);
-                        return volumes[i].getStorageId();
-                    }
+        for (int i = 0; i < mExternalStoragePaths.length; i++) {
+            String test = mExternalStoragePaths[i];
+            if (path.startsWith(test)) {
+                int length = test.length();
+                if (path.length() == length || path.charAt(length) == '/') {
+                    return MtpStorage.getStorageId(i);
                 }
             }
         }
-
         // default to primary storage
         return MtpStorage.getStorageId(0);
     }
@@ -4611,13 +4596,10 @@ public class MediaProvider extends ContentProvider {
             throw new IllegalArgumentException("Unable to resolve canonical path for " + file, e);
         }
 
-        Context c = getContext();
-        boolean readGranted =
-                (c.checkCallingOrSelfUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                == PackageManager.PERMISSION_GRANTED);
-
         if (path.startsWith(sExternalPath)) {
-            if (!readGranted) {
+            Context c = getContext();
+            if (c.checkCallingOrSelfUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    != PackageManager.PERMISSION_GRANTED) {
                 c.enforceCallingOrSelfPermission(
                         READ_EXTERNAL_STORAGE, "External path: " + path);
             }
@@ -4631,19 +4613,15 @@ public class MediaProvider extends ContentProvider {
             }
 
         } else if (path.startsWith(sCachePath)) {
-            if (!readGranted) {
-                c.enforceCallingOrSelfPermission(
-                        ACCESS_CACHE_FILESYSTEM, "Cache path: " + path);
-            }
+            getContext().enforceCallingOrSelfPermission(
+                    ACCESS_CACHE_FILESYSTEM, "Cache path: " + path);
         } else if (isWrite) {
             // don't write to non-cache, non-sdcard files.
             throw new FileNotFoundException("Can't access " + file);
         } else if (isSecondaryExternalPath(path)) {
             // read access is OK with the appropriate permission
-            if (!readGranted) {
-                c.enforceCallingOrSelfPermission(
-                        READ_EXTERNAL_STORAGE, "External path: " + path);
-            }
+            getContext().enforceCallingOrSelfPermission(
+                    READ_EXTERNAL_STORAGE, "External path: " + path);
         } else {
             checkWorldReadAccess(path);
         }
