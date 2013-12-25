@@ -32,7 +32,12 @@ import android.mtp.MtpDatabase;
 import android.mtp.MtpServer;
 import android.mtp.MtpStorage;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
+import android.os.Process;
 import android.os.UserHandle;
 import android.os.storage.StorageEventListener;
 import android.os.storage.StorageManager;
@@ -46,6 +51,8 @@ public class MtpService extends Service {
     private static final String TAG = "MtpService";
     private static final boolean LOGD = true;
     private static final int NOTIFICATION_ID = 1336;
+    private static final int MSG_STORAGE_INFO_CHANGED = 0;
+    private static final int UPDATE_DELAY = 500;
 
     // We restrict PTP to these subdirectories
     private static final String[] PTP_DIRECTORIES = new String[] {
@@ -94,12 +101,8 @@ public class MtpService extends Service {
                         }
                     }}, "addStorageDevices").start();
             } else if (Intent.ACTION_USER_REMOVED.equals(action)) {
-                final StorageVolume primary = StorageManager.getPrimaryVolume(mVolumes);
-                synchronized (mBinder) {
-                    if (primary != null) {
-                        changeStorageInfo(primary);
-                    }
-                }
+                Log.v(TAG, "Receive ACTION_USER_REMOVED");
+                mHandler.updateMtpStorageInfo();
             }
         }
     };
@@ -130,6 +133,37 @@ public class MtpService extends Service {
     private final HashMap<String, StorageVolume> mVolumeMap = new HashMap<String, StorageVolume>();
     private final HashMap<String, MtpStorage> mStorageMap = new HashMap<String, MtpStorage>();
     private StorageVolume[] mVolumes;
+    private MtpStorageInfoHandler mHandler;
+
+    private final class MtpStorageInfoHandler extends Handler {
+
+        public MtpStorageInfoHandler(Looper looper) {
+            super(looper);
+        }
+
+        public void updateMtpStorageInfo() {
+            removeMessages(MSG_STORAGE_INFO_CHANGED);
+            Message msg = Message.obtain(this, MSG_STORAGE_INFO_CHANGED);
+            sendMessageDelayed(msg, UPDATE_DELAY);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch(msg.what) {
+                case MSG_STORAGE_INFO_CHANGED:
+                    final StorageVolume primary = StorageManager.getPrimaryVolume(mVolumes);
+                    synchronized (mBinder) {
+                        if (primary != null) {
+                            changeStorageInfo(primary);
+                        }
+                    }
+                    break;
+                default:
+                    Log.e(TAG, "handleMessage is " + msg.what);
+                    break;
+            }
+        }
+    }
 
     @Override
     public void onCreate() {
@@ -150,6 +184,12 @@ public class MtpService extends Service {
                 }
             }
         }
+        //create a thread for our handler
+        HandlerThread thread = new HandlerThread("MtpStorageInfo",
+            Process.THREAD_PRIORITY_BACKGROUND);
+
+        thread.start();
+        mHandler = new MtpStorageInfoHandler(thread.getLooper());
     }
 
     @Override
