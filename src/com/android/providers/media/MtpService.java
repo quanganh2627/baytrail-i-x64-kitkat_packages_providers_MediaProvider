@@ -101,8 +101,10 @@ public class MtpService extends Service {
                         }
                     }}, "addStorageDevices").start();
             } else if (Intent.ACTION_USER_REMOVED.equals(action)) {
-                Log.v(TAG, "Receive ACTION_USER_REMOVED");
-                mHandler.updateMtpStorageInfo();
+                if (null != mHandler) {
+                    Log.v(TAG, "Receive ACTION_USER_REMOVED");
+                    mHandler.updateMtpStorageInfo();
+                }
             }
         }
     };
@@ -189,7 +191,10 @@ public class MtpService extends Service {
             Process.THREAD_PRIORITY_BACKGROUND);
 
         thread.start();
-        mHandler = new MtpStorageInfoHandler(thread.getLooper());
+        Looper threadLooper = thread.getLooper();
+        if (null != threadLooper) {
+            mHandler = new MtpStorageInfoHandler(threadLooper);
+        }
     }
 
     @Override
@@ -226,7 +231,7 @@ public class MtpService extends Service {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
         final KeyguardManager keyguardManager = (KeyguardManager) getSystemService(
                 Context.KEYGUARD_SERVICE);
-        mMtpDisabled = (keyguardManager.isKeyguardLocked() && keyguardManager.isKeyguardSecure())
+        mMtpDisabled = (keyguardManager.isKeyguardLocked() || keyguardManager.isKeyguardSecure())
                 || !isCurrentUser;
         if (LOGD) {
             Log.d(TAG, "updating state; isCurrentUser=" + isCurrentUser + ", mMtpLocked="
