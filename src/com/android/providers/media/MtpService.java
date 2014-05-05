@@ -135,7 +135,10 @@ public class MtpService extends Service {
     private final HashMap<String, StorageVolume> mVolumeMap = new HashMap<String, StorageVolume>();
     private final HashMap<String, MtpStorage> mStorageMap = new HashMap<String, MtpStorage>();
     private StorageVolume[] mVolumes;
+
     private MtpStorageInfoHandler mHandler;
+    private Looper mThreadLooper;
+    private HandlerThread mThread;
 
     private final class MtpStorageInfoHandler extends Handler {
 
@@ -187,13 +190,15 @@ public class MtpService extends Service {
             }
         }
         //create a thread for our handler
-        HandlerThread thread = new HandlerThread("MtpStorageInfo",
-            Process.THREAD_PRIORITY_BACKGROUND);
+        if (mThreadLooper == null || mThread == null) {
+            mThread = new HandlerThread("MtpStorageInfo",
+                Process.THREAD_PRIORITY_BACKGROUND);
 
-        thread.start();
-        Looper threadLooper = thread.getLooper();
-        if (null != threadLooper) {
-            mHandler = new MtpStorageInfoHandler(threadLooper);
+            mThread.start();
+            mThreadLooper = mThread.getLooper();
+            if (mThreadLooper != null) {
+                mHandler = new MtpStorageInfoHandler(mThreadLooper);
+            }
         }
     }
 
@@ -268,6 +273,10 @@ public class MtpService extends Service {
         mStorageManager.unregisterListener(mStorageEventListener);
         if (mDatabase != null) {
             mDatabase.release();
+        }
+
+        if (mThread != null) {
+            mThread.quit();
         }
     }
 
