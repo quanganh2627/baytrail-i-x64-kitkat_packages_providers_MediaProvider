@@ -588,7 +588,22 @@ public class MediaProvider extends ContentProvider {
 
         StorageManager storageManager =
                 (StorageManager)context.getSystemService(Context.STORAGE_SERVICE);
-        mExternalStoragePaths = storageManager.getVolumePaths();
+        StorageVolume[] mVolumes = storageManager.getVolumeList();
+        mExternalStoragePaths = new String[mVolumes.length];
+        int index = 0;
+        for (StorageVolume volume : mVolumes) {
+            if (volume.isPrimary()) {
+                mExternalStoragePaths[index++] = volume.getPath();
+            }
+        }
+        if (index == 0)
+            Log.w(TAG, "No primary storage");
+
+        for (StorageVolume volume : mVolumes) {
+            if (!volume.isPrimary()) {
+                mExternalStoragePaths[index++] = volume.getPath();
+            }
+        }
 
         // open external database if external storage is mounted
         String state = Environment.getExternalStorageState();
