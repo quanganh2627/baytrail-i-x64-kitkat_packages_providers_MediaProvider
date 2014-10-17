@@ -186,14 +186,16 @@ public class MtpService extends Service {
      */
     private void manageServiceLocked() {
         final boolean isCurrentUser = UserHandle.myUserId() == ActivityManager.getCurrentUser();
-        if (mServer == null && isCurrentUser) {
-            Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
-            mServer = new MtpServer(mDatabase, mPtpMode);
-            mDatabase.setServer(mServer);
+        if (isCurrentUser) {
+            if (mServer == null) {
+                Log.d(TAG, "starting MTP server in " + (mPtpMode ? "PTP mode" : "MTP mode"));
+                mServer = new MtpServer(mDatabase, mPtpMode);
+                mDatabase.setServer(mServer);
+                mServer.start();
+            }
             if (!mMtpDisabled) {
                 addStorageDevicesLocked();
             }
-            mServer.start();
         } else if (mServer != null && !isCurrentUser) {
             Log.d(TAG, "no longer current user; shutting down MTP server");
             // Internally, kernel will close our FD, and server thread will
