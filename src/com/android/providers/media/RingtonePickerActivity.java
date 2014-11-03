@@ -17,8 +17,10 @@
 package com.android.providers.media;
 
 import android.content.DialogInterface;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
+import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -54,6 +56,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
     private static final String SAVE_CLICKED_POS = "clicked_pos";
 
     private RingtoneManager mRingtoneManager;
+    private AudioManager mAudioMgr;
     private int mType;
 
     private Cursor mCursor;
@@ -126,7 +129,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         super.onCreate(savedInstanceState);
 
         mHandler = new Handler();
-
+        mAudioMgr = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
         Intent intent = getIntent();
 
         /*
@@ -280,7 +283,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
                 mCursor.deactivate();
             }
         });
-
+        mAudioMgr.abandonAudioFocus(null);
         finish();
     }
 
@@ -326,6 +329,7 @@ public final class RingtonePickerActivity extends AlertActivity implements
         }
 
         if (ringtone != null) {
+            mAudioMgr.requestAudioFocus(null, AudioManager.STREAM_RING, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
             ringtone.play();
         }
     }
